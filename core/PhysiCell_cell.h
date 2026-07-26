@@ -169,8 +169,13 @@ class Cell : public Basic_Agent
 	int updated_current_mechanics_voxel_index; // keeps the updated voxel index for later adjusting of current voxel index
 		
  public:
-	std::string type_name; 
- 
+	std::string type_name;
+
+	// lineage tracking
+	int parent_ID;    // ID of the cell that divided to produce this one; -1 for founder cells
+	double birth_time; // simulation time at which this cell object was created
+	double parent_birth_time; // birth_time of the parent, captured at division; -1 for founders
+
 	Custom_Cell_Data custom_data;
 	Cell_Parameters parameters;
 	Cell_Functions functions; 
@@ -256,9 +261,27 @@ class Cell : public Basic_Agent
 Cell* create_cell( Cell* (*custom_instantiate)() = NULL );  
 Cell* create_cell( Cell_Definition& cd );  
 
-void delete_cell( int ); 
-void delete_cell( Cell* ); 
-void save_all_cells_to_matlab( std::string filename ); 
+void delete_cell( int );
+void delete_cell( Cell* );
+void save_all_cells_to_matlab( std::string filename );
+
+// cell lineage tracking
+struct Division_Event
+{
+	double time;    // simulation time of the division
+	int parent_ID;  // ID of the dividing (mother) cell
+	int daughter_ID; // ID of the newly created (daughter) cell
+};
+// running record of every cell division, appended to in Cell::divide()
+extern std::vector<Division_Event> cell_division_events;
+// write the full record of division events to a CSV file
+// (columns: time,parent_ID,daughter_ID). Safe to call repeatedly; rewrites the whole file.
+void save_cell_lineage( std::string filename );
+// write a per-cell table of all currently-live cells to a CSV file. Columns:
+// ID,parent_ID,x,y,z,neighbor_IDs,branch_length_to_parent
+// neighbor_IDs is a ';'-separated list; branch_length is birth_time - parent_birth_time
+// (time between this cell's birth and its parent's birth), or -1 for founder cells.
+void save_cell_lineage_table( std::string filename );
 
 //function to check if a neighbor voxel contains any cell that can interact with me
 bool is_neighbor_voxel(Cell* pCell, std::vector<double> myVoxelCenter, std::vector<double> otherVoxelCenter, int otherVoxelIndex);  

@@ -255,8 +255,14 @@ void add_PhysiCell_cells_to_open_xml_pugi_v2( pugi::xml_document& xml_dom, std::
 
 // compatibilty : first 17 entries 
 		// ID 					<label index="0" size="1">ID</label>
-		add_variable_to_labels( data_names,data_units,data_start_indices,data_sizes, 
-			"ID" , "none" , 1 ) ; 
+		add_variable_to_labels( data_names,data_units,data_start_indices,data_sizes,
+			"ID" , "none" , 1 ) ;
+
+		// lineage: ID of the mother cell (-1 for founders) and this cell's birth time
+		add_variable_to_labels( data_names,data_units,data_start_indices,data_sizes,
+			"parent_ID" , "none" , 1 ) ;
+		add_variable_to_labels( data_names,data_units,data_start_indices,data_sizes,
+			"birth_time" , "min" , 1 ) ;
 
 		//					<label index="1" size="3">position</label>
 		add_variable_to_labels( data_names,data_units,data_start_indices,data_sizes, 
@@ -784,9 +790,14 @@ void add_PhysiCell_cells_to_open_xml_pugi_v2( pugi::xml_document& xml_dom, std::
 		// double ID_temp = (double) (*all_cells)[i]->ID;
 		// fwrite( (char*) &( ID_temp ) , sizeof(double) , 1 , fp ); 
 
-		// name = "ID"; 
+		// name = "ID";
 		dTemp = (double) pCell->ID;
-		std::fwrite( &( dTemp ) , sizeof(double) , 1 , fp ); 
+		std::fwrite( &( dTemp ) , sizeof(double) , 1 , fp );
+		// name = "parent_ID";
+		dTemp = (double) pCell->parent_ID;
+		std::fwrite( &( dTemp ) , sizeof(double) , 1 , fp );
+		// name = "birth_time";
+		std::fwrite( &( pCell->birth_time ) , sizeof(double) , 1 , fp );
 		// name = "position";    NOTE very different syntax for writing vectors!
         std::fwrite( pCell->position.data() , sizeof(double) , 3 , fp );
 		// name = "total_volume"; 

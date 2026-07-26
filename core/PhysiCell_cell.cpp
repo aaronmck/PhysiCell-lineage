@@ -69,7 +69,8 @@
 #include "PhysiCell_cell_container.h"
 #include "PhysiCell_utilities.h"
 #include "PhysiCell_constants.h"
-#include "../BioFVM/BioFVM_vector.h" 
+#include "../modules/PhysiCell_settings.h" // for PhysiCell_globals.current_time (lineage birth times)
+#include "../BioFVM/BioFVM_vector.h"
 
 #ifdef ADDON_PHYSIBOSS
 #include "../addons/PhysiBoSS/src/maboss_intracellular.h"
@@ -86,9 +87,13 @@
 #include <signal.h>  // for segfault
 
 #include <algorithm>
-#include <iterator> 
+#include <iterator>
+#include <fstream> // for save_cell_lineage
 
 namespace PhysiCell{
+
+// running record of every cell division (see Cell::divide and save_cell_lineage)
+std::vector<Division_Event> cell_division_events;
 
 std::unordered_map<std::string,Cell_Definition*> cell_definitions_by_name; 
 std::unordered_map<int,Cell_Definition*> cell_definitions_by_type; 
@@ -403,10 +408,15 @@ Cell::Cell()
 {
 	// use the cell defaults; 
 	
-	type = cell_defaults.type; 
-	type_name = cell_defaults.name; 
-	
-	custom_data = cell_defaults.custom_data; 
+	type = cell_defaults.type;
+	type_name = cell_defaults.name;
+
+	// lineage tracking: founder by default; birth time is "now"
+	parent_ID = -1;
+	birth_time = PhysiCell_globals.current_time;
+	parent_birth_time = -1.0;
+
+	custom_data = cell_defaults.custom_data;
 	parameters = cell_defaults.parameters; 
 	functions = cell_defaults.functions; 
 	
@@ -569,10 +579,19 @@ Cell* Cell::divide( )
 
 	
 	Cell* child = create_cell(functions.instantiate_cell);
-	child->copy_data( this );	
+	child->copy_data( this );
 	child->copy_function_pointers(this);
 	child->parameters = parameters;
-	
+
+	// lineage tracking: record parentage of the daughter, and log the division event.
+	// Note: copy_data() above does NOT copy ID/parent_ID, so the daughter keeps the
+	// unique ID assigned at construction; we set its parent here. birth_time was set
+	// to the current time in the daughter's constructor (called inside create_cell).
+	child->parent_ID = this->ID;
+	child->parent_birth_time = this->birth_time; // captured now so branch length survives the parent's death
+	cell_division_events.push_back( { PhysiCell_globals.current_time, this->ID, child->ID } );
+
+
 	// evenly divide internalized substrates 
 	// if these are not actively tracked, they are zero anyway 
 	*internalized_substrates *= 0.5; 
@@ -1257,7 +1276,64 @@ void delete_cell_original( int index ) // before June 11, 2020
 void delete_cell( Cell* pDelete )
 {
 	delete_cell(pDelete->index);
-	return; 
+	return;
+}
+
+void save_cell_lineage( std::string filename )
+{
+	std::ofstream out( filename.c_str() );
+	if( out.fail() )
+	{
+		std::cout << "Warning: could not open " << filename << " to write cell lineage." << std::endl;
+		return;
+	}
+	out << "time,parent_ID,daughter_ID" << std::endl;
+	for( unsigned int n = 0 ; n < cell_division_events.size() ; n++ )
+	{
+		out << cell_division_events[n].time << ","
+			<< cell_division_events[n].parent_ID << ","
+			<< cell_division_events[n].daughter_ID << std::endl;
+	}
+	out.close();
+	return;
+}
+
+void save_cell_lineage_table( std::string filename )
+{
+	std::ofstream out( filename.c_str() );
+	if( out.fail() )
+	{
+		std::cout << "Warning: could not open " << filename << " to write cell lineage table." << std::endl;
+		return;
+	}
+	out << "ID,parent_ID,x,y,z,neighbor_IDs,branch_length_to_parent" << std::endl;
+	for( unsigned int i = 0 ; i < (*all_cells).size() ; i++ )
+	{
+		Cell* pCell = (*all_cells)[i];
+		out << pCell->ID << ","
+			<< pCell->parent_ID << ","
+			<< pCell->position[0] << ","
+			<< pCell->position[1] << ","
+			<< pCell->position[2] << ",";
+		// neighbor IDs joined by ';' so they don't collide with the CSV commas
+		int n_neighbors = pCell->state.neighbors.size();
+		for( int j = 0 ; j < n_neighbors ; j++ )
+		{
+			out << pCell->state.neighbors[j]->ID;
+			if( j != n_neighbors - 1 )
+			{ out << ";"; }
+		}
+		out << ",";
+		// branch length = time between this cell's birth and its parent's birth;
+		// -1 for founder cells (no parent)
+		if( pCell->parent_ID < 0 )
+		{ out << -1; }
+		else
+		{ out << ( pCell->birth_time - pCell->parent_birth_time ); }
+		out << std::endl;
+	}
+	out.close();
+	return;
 }
 
 bool is_neighbor_voxel(Cell* pCell, std::vector<double> my_voxel_center, std::vector<double> other_voxel_center, int other_voxel_index)
