@@ -1,0 +1,11 @@
+{
+  "name": "physicell-viewer",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Browser viewer for PhysiCell output. No dependencies: three.js is vendored under vendor/.",
+  "scripts": {
+    "test": "node --test",
+    "serve": "python3 serve.py"
+  }
+}

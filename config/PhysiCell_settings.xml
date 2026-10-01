@@ -1,23 +1,56 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  3D cerebral (dorsal forebrain) organoid — MOSAIC variant.
+
+  Identical to cerebral_organoid_3D except that a subset of the founding
+  neuroepithelial cells (variant_fraction, default 10%) carries a heritable
+  "variant" identity: variant NE -> variant RG, whose differentiative output
+  (asymmetric divisions to IPC/oRG, the gliogenic transform) is scaled by
+  (1 - skew). At skew 0 the variant clone behaves exactly like wild type; at
+  skew 1 it is a differentiation-locked, purely self-renewing progenitor
+  clone — mosaic mTOR-pathway-like dynamics. The skew is written into the
+  variant RG rows of cell_rules.csv (and the VARIANT_BASE line below) by
+  sweep.py, which runs a grid of skews and stores each run's lineage, cell
+  states and 3D structure.
+
+  Seven cell types on the canonical excitatory-cortex lineage:
+
+    NE (neuroepithelial) -> apical RG -> { oRG, IPC } -> deep/upper neurons
+    apical RG / oRG -(neuron-derived CT-1)-> astrocyte
+
+  Neurogenic divisions are asymmetric divisions of the radial glia, so the
+  recorded lineage tree is the biology: an apical RG appears as one long branch
+  that buds IPCs, exactly as in clonal-labelling experiments. Fate transitions
+  live in cell_rules.csv; three diffusible signals drive them:
+
+    oxygen  from the medium; no vasculature, so a deep core can go hypoxic
+    dll     DLL1/DLL4 Notch-ligand proxy from committed cells (IPCs, neurons):
+            lateral inhibition that keeps radial glia proliferative
+    ct1     cardiotrophin-1-like gliogenic cue secreted by neurons; the
+            gliogenic switch fires only once enough neurons have accumulated
+
+  See README.md in this project for the biology and the parameter table.
+-->
 <PhysiCell_settings version="devel-version">
 
     <domain>
-        <x_min>-500</x_min>
-        <x_max>500</x_max>
-        <y_min>-500</y_min>
-        <y_max>500</y_max>
-        <z_min>-10</z_min>
-        <z_max>10</z_max>
+        <x_min>-250</x_min>
+        <x_max>250</x_max>
+        <y_min>-250</y_min>
+        <y_max>250</y_max>
+        <z_min>-250</z_min>
+        <z_max>250</z_max>
         <dx>20</dx>
         <dy>20</dy>
         <dz>20</dz>
-        <use_2D>true</use_2D>
+        <use_2D>false</use_2D>
     </domain>
 
     <overall>
-        <max_time units="min">14400</max_time>
+        <max_time units="min">10080</max_time> <!-- 7 days, a compressed stand-in for ~2 months of culture -->
         <time_units>min</time_units>
         <space_units>micron</space_units>
-        <dt_diffusion units="min">0.01</dt_diffusion>
+        <dt_diffusion units="min">0.02</dt_diffusion>
         <dt_mechanics units="min">0.1</dt_mechanics>
         <dt_phenotype units="min">6</dt_phenotype>
     </overall>
@@ -29,12 +62,18 @@
     <save>
         <folder>output</folder>
         <full_data>
-            <interval units="min">60</interval>
+            <!-- sweep-friendly: 4-hourly frames keep a 10-run grid ~1 GB -->
+            <interval units="min">240</interval>
             <enable>true</enable>
         </full_data>
         <SVG>
-            <interval units="min">60</interval>
-            <enable>true</enable>
+            <interval units="min">120</interval>
+            <enable>false</enable>
+            <plot_substrate enabled="false" limits="false">
+                <substrate>oxygen</substrate>
+                <min_conc />
+                <max_conc />
+            </plot_substrate>
         </SVG>
         <legacy_data>
             <enable>false</enable>
@@ -44,60 +83,40 @@
     <options>
         <legacy_random_points_on_sphere_in_divide>false</legacy_random_points_on_sphere_in_divide>
         <virtual_wall_at_domain_edge>true</virtual_wall_at_domain_edge>
+        <disable_automated_spring_adhesions>false</disable_automated_spring_adhesions>
+        <random_seed>0</random_seed>
     </options>
 
     <microenvironment_setup>
-        <variable name="oxygen" units="dimensionless" ID="0">
+        <variable name="oxygen" units="mmHg" ID="0">
             <physical_parameter_set>
-                <diffusion_coefficient units="micron^2/min">100000.0</diffusion_coefficient>
+                <diffusion_coefficient units="micron^2/min">100000</diffusion_coefficient>
                 <decay_rate units="1/min">0.1</decay_rate>
             </physical_parameter_set>
             <initial_condition units="mmHg">38</initial_condition>
-            <Dirichlet_boundary_condition units="mmHg" enabled="True">0</Dirichlet_boundary_condition>
-            <Dirichlet_options>
-                <boundary_value ID="xmin" enabled="True">38</boundary_value>
-                <boundary_value ID="xmax" enabled="True">10</boundary_value>
-                <boundary_value ID="ymin" enabled="True">10</boundary_value>
-                <boundary_value ID="ymax" enabled="True">38</boundary_value>
-                <boundary_value ID="zmin" enabled="False">0</boundary_value>
-                <boundary_value ID="zmax" enabled="False">0</boundary_value>
-            </Dirichlet_options>
+            <Dirichlet_boundary_condition units="mmHg" enabled="true">38</Dirichlet_boundary_condition>
         </variable>
-        <variable name="necrotic debris" units="dimensionless" ID="1">
+        <variable name="dll" units="dimensionless" ID="1">
+            <!-- short range (~12 um): a juxtacrine ligand stood in by a fast-decaying field -->
             <physical_parameter_set>
-                <diffusion_coefficient units="micron^2/min">10</diffusion_coefficient>
-                <decay_rate units="1/min">.1</decay_rate>
+                <diffusion_coefficient units="micron^2/min">144</diffusion_coefficient>
+                <decay_rate units="1/min">1</decay_rate>
             </physical_parameter_set>
-            <initial_condition units="mmHg">0</initial_condition>
-            <Dirichlet_boundary_condition units="mmHg" enabled="False">0</Dirichlet_boundary_condition>
-            <Dirichlet_options>
-                <boundary_value ID="xmin" enabled="False">0</boundary_value>
-                <boundary_value ID="xmax" enabled="False">0</boundary_value>
-                <boundary_value ID="ymin" enabled="False">0</boundary_value>
-                <boundary_value ID="ymax" enabled="False">0</boundary_value>
-                <boundary_value ID="zmin" enabled="False">0</boundary_value>
-                <boundary_value ID="zmax" enabled="False">0</boundary_value>
-            </Dirichlet_options>
+            <initial_condition units="dimensionless">0</initial_condition>
+            <Dirichlet_boundary_condition units="dimensionless" enabled="false">0</Dirichlet_boundary_condition>
         </variable>
-        <variable name="apoptotic debris" units="dimensionless" ID="2">
+        <variable name="ct1" units="dimensionless" ID="2">
+            <!-- long range (~140 um): accumulates organoid-wide as neurons appear -->
             <physical_parameter_set>
-                <diffusion_coefficient units="micron^2/min">10</diffusion_coefficient>
-                <decay_rate units="1/min">0.1</decay_rate>
+                <diffusion_coefficient units="micron^2/min">1000</diffusion_coefficient>
+                <decay_rate units="1/min">0.05</decay_rate>
             </physical_parameter_set>
-            <initial_condition units="mmHg">0</initial_condition>
-            <Dirichlet_boundary_condition units="mmHg" enabled="False">0</Dirichlet_boundary_condition>
-            <Dirichlet_options>
-                <boundary_value ID="xmin" enabled="False">0</boundary_value>
-                <boundary_value ID="xmax" enabled="False">0</boundary_value>
-                <boundary_value ID="ymin" enabled="False">0</boundary_value>
-                <boundary_value ID="ymax" enabled="False">0</boundary_value>
-                <boundary_value ID="zmin" enabled="False">0</boundary_value>
-                <boundary_value ID="zmax" enabled="False">0</boundary_value>
-            </Dirichlet_options>
+            <initial_condition units="dimensionless">0</initial_condition>
+            <Dirichlet_boundary_condition units="dimensionless" enabled="false">0</Dirichlet_boundary_condition>
         </variable>
         <options>
             <calculate_gradients>true</calculate_gradients>
-            <track_internalized_substrates_in_each_agent>true</track_internalized_substrates_in_each_agent>
+            <track_internalized_substrates_in_each_agent>false</track_internalized_substrates_in_each_agent>
             <initial_condition type="matlab" enabled="false">
                 <filename>./config/initial.mat</filename>
             </initial_condition>
@@ -108,16 +127,19 @@
     </microenvironment_setup>
 
     <cell_definitions>
-        <cell_definition name="malignant epithelial" ID="0">
+        <cell_definition name="NE" ID="0">
+            <!-- neuroepithelial stem cell: the founding population, fast-cycling,
+                 converts to apical radial glia over the first day or two -->
             <phenotype>
                 <cycle code="5" name="live">
                     <phase_transition_rates units="1/min">
-                        <rate start_index="0" end_index="0" fixed_duration="false">0.000</rate>
+                        <!-- ~20 h cycle -->
+                        <rate start_index="0" end_index="0" fixed_duration="false">0.00083</rate>
                     </phase_transition_rates>
                 </cycle>
                 <death>
                     <model code="100" name="apoptosis">
-                        <death_rate units="1/min">5.31667e-05</death_rate>
+                        <death_rate units="1/min">1e-05</death_rate>
                         <phase_durations units="min">
                             <duration index="0" fixed_duration="true">516</duration>
                         </phase_durations>
@@ -131,7 +153,9 @@
                         </parameters>
                     </model>
                     <model code="101" name="necrosis">
-                        <death_rate units="1/min">2.80E-03</death_rate>
+                        <!-- the hypoxic maximum; the oxygen rule silences it in a
+                             well-oxygenated cell (see cell_rules.csv) -->
+                        <death_rate units="1/min">0.00417</death_rate>
                         <phase_durations units="min">
                             <duration index="0" fixed_duration="true">0</duration>
                             <duration index="1" fixed_duration="true">86400</duration>
@@ -147,9 +171,9 @@
                     </model>
                 </death>
                 <volume>
-                    <total units="micron^3">2494</total>
+                    <total units="micron^3">1400</total>
                     <fluid_fraction units="dimensionless">0.75</fluid_fraction>
-                    <nuclear units="micron^3">540</nuclear>
+                    <nuclear units="micron^3">500</nuclear>
                     <fluid_change_rate units="1/min">0.05</fluid_change_rate>
                     <cytoplasmic_biomass_change_rate units="1/min">0.0045</cytoplasmic_biomass_change_rate>
                     <nuclear_biomass_change_rate units="1/min">0.0055</nuclear_biomass_change_rate>
@@ -158,29 +182,34 @@
                     <relative_rupture_volume units="dimensionless">2.0</relative_rupture_volume>
                 </volume>
                 <mechanics>
-                    <cell_cell_adhesion_strength units="micron/min">0.4</cell_cell_adhesion_strength>
+                    <cell_cell_adhesion_strength units="micron/min">0.6</cell_cell_adhesion_strength>
                     <cell_cell_repulsion_strength units="micron/min">10.0</cell_cell_repulsion_strength>
-                    <relative_maximum_adhesion_distance units="dimensionless">1.25</relative_maximum_adhesion_distance>
+                    <relative_maximum_adhesion_distance units="dimensionless">1.4</relative_maximum_adhesion_distance>
                     <cell_adhesion_affinities>
-                        <cell_adhesion_affinity name="malignant epithelial">1</cell_adhesion_affinity>
+                        <cell_adhesion_affinity name="NE">1.0</cell_adhesion_affinity>
+                        <cell_adhesion_affinity name="apical RG">1.0</cell_adhesion_affinity>
+                        <cell_adhesion_affinity name="oRG">1.0</cell_adhesion_affinity>
+                        <cell_adhesion_affinity name="IPC">1.0</cell_adhesion_affinity>
+                        <cell_adhesion_affinity name="deep neuron">1.0</cell_adhesion_affinity>
+                        <cell_adhesion_affinity name="upper neuron">1.0</cell_adhesion_affinity>
+                        <cell_adhesion_affinity name="astrocyte">1.0</cell_adhesion_affinity>
                     </cell_adhesion_affinities>
                     <options>
                         <set_relative_equilibrium_distance enabled="false" units="dimensionless">1.8</set_relative_equilibrium_distance>
                         <set_absolute_equilibrium_distance enabled="false" units="micron">15.12</set_absolute_equilibrium_distance>
                     </options>
-                    <cell_BM_adhesion_strength units="micron/min">4.0</cell_BM_adhesion_strength>
-                    <cell_BM_repulsion_strength units="micron/min">10.0</cell_BM_repulsion_strength>
                     <attachment_elastic_constant units="1/min">0.01</attachment_elastic_constant>
                     <attachment_rate units="1/min">0.0</attachment_rate>
                     <detachment_rate units="1/min">0.0</detachment_rate>
+                    <maximum_number_of_attachments>12</maximum_number_of_attachments>
                 </mechanics>
                 <motility>
-                    <speed units="micron/min">1</speed>
-                    <persistence_time units="min">1</persistence_time>
-                    <migration_bias units="dimensionless">.5</migration_bias>
+                    <speed units="micron/min">0.1</speed>
+                    <persistence_time units="min">10</persistence_time>
+                    <migration_bias units="dimensionless">0.0</migration_bias>
                     <options>
                         <enabled>false</enabled>
-                        <use_2D>true</use_2D>
+                        <use_2D>false</use_2D>
                         <chemotaxis>
                             <enabled>false</enabled>
                             <substrate>oxygen</substrate>
@@ -191,8 +220,8 @@
                             <normalize_each_gradient>false</normalize_each_gradient>
                             <chemotactic_sensitivities>
                                 <chemotactic_sensitivity substrate="oxygen">0.0</chemotactic_sensitivity>
-                                <chemotactic_sensitivity substrate="necrotic debris">0.0</chemotactic_sensitivity>
-                                <chemotactic_sensitivity substrate="apoptotic debris">0.0</chemotactic_sensitivity>
+                                <chemotactic_sensitivity substrate="dll">0.0</chemotactic_sensitivity>
+                                <chemotactic_sensitivity substrate="ct1">0.0</chemotactic_sensitivity>
                             </chemotactic_sensitivities>
                         </advanced_chemotaxis>
                     </options>
@@ -200,54 +229,261 @@
                 <secretion>
                     <substrate name="oxygen">
                         <secretion_rate units="1/min">0</secretion_rate>
-                        <secretion_target units="substrate density">1</secretion_target>
+                        <secretion_target units="substrate density">38</secretion_target>
                         <uptake_rate units="1/min">10</uptake_rate>
                         <net_export_rate units="total substrate/min">0</net_export_rate>
                     </substrate>
-                    <substrate name="necrotic debris">
-                        <secretion_rate units="1/min">0.0</secretion_rate>
-                        <secretion_target units="substrate density">1</secretion_target>
-                        <uptake_rate units="1/min">0.0</uptake_rate>
-                        <net_export_rate units="total substrate/min">0.0</net_export_rate>
+                    <substrate name="dll">
+                        <secretion_rate units="1/min">0</secretion_rate>
+                        <secretion_target units="substrate density">0.25</secretion_target>
+                        <uptake_rate units="1/min">0</uptake_rate>
+                        <net_export_rate units="total substrate/min">0</net_export_rate>
                     </substrate>
-                    <substrate name="apoptotic debris">
-                        <secretion_rate units="1/min">0.0</secretion_rate>
+                    <substrate name="ct1">
+                        <secretion_rate units="1/min">0</secretion_rate>
                         <secretion_target units="substrate density">1</secretion_target>
-                        <uptake_rate units="1/min">0.0</uptake_rate>
-                        <net_export_rate units="total substrate/min">0.0</net_export_rate>
+                        <uptake_rate units="1/min">0</uptake_rate>
+                        <net_export_rate units="total substrate/min">0</net_export_rate>
                     </substrate>
                 </secretion>
                 <cell_interactions>
-                    <dead_phagocytosis_rate units="1/min">0</dead_phagocytosis_rate>
+                    <apoptotic_phagocytosis_rate units="1/min">0</apoptotic_phagocytosis_rate>
+                    <necrotic_phagocytosis_rate units="1/min">0</necrotic_phagocytosis_rate>
+                    <other_dead_phagocytosis_rate units="1/min">0</other_dead_phagocytosis_rate>
                     <live_phagocytosis_rates>
-                        <phagocytosis_rate name="malignant epithelial" units="1/min">0</phagocytosis_rate>
-                        <phagocytosis_rate name="default" units="1/min">0</phagocytosis_rate>
+                        <phagocytosis_rate name="NE" units="1/min">0</phagocytosis_rate>
+                        <phagocytosis_rate name="apical RG" units="1/min">0</phagocytosis_rate>
+                        <phagocytosis_rate name="oRG" units="1/min">0</phagocytosis_rate>
+                        <phagocytosis_rate name="IPC" units="1/min">0</phagocytosis_rate>
+                        <phagocytosis_rate name="deep neuron" units="1/min">0</phagocytosis_rate>
+                        <phagocytosis_rate name="upper neuron" units="1/min">0</phagocytosis_rate>
+                        <phagocytosis_rate name="astrocyte" units="1/min">0</phagocytosis_rate>
                     </live_phagocytosis_rates>
                     <attack_rates>
-                        <attack_rate name="malignant epithelial" units="1/min">0</attack_rate>
-                        <attack_rate name="default" units="1/min">0</attack_rate>
+                        <attack_rate name="NE" units="1/min">0</attack_rate>
+                        <attack_rate name="apical RG" units="1/min">0</attack_rate>
+                        <attack_rate name="oRG" units="1/min">0</attack_rate>
+                        <attack_rate name="IPC" units="1/min">0</attack_rate>
+                        <attack_rate name="deep neuron" units="1/min">0</attack_rate>
+                        <attack_rate name="upper neuron" units="1/min">0</attack_rate>
+                        <attack_rate name="astrocyte" units="1/min">0</attack_rate>
                     </attack_rates>
-                    <damage_rate units="1/min">1</damage_rate>
+                    <attack_damage_rate units="1/min">0</attack_damage_rate>
+                    <attack_duration units="min">0.1</attack_duration>
                     <fusion_rates>
-                        <fusion_rate name="malignant epithelial" units="1/min">0</fusion_rate>
-                        <fusion_rate name="default" units="1/min">0</fusion_rate>
+                        <fusion_rate name="NE" units="1/min">0</fusion_rate>
+                        <fusion_rate name="apical RG" units="1/min">0</fusion_rate>
+                        <fusion_rate name="oRG" units="1/min">0</fusion_rate>
+                        <fusion_rate name="IPC" units="1/min">0</fusion_rate>
+                        <fusion_rate name="deep neuron" units="1/min">0</fusion_rate>
+                        <fusion_rate name="upper neuron" units="1/min">0</fusion_rate>
+                        <fusion_rate name="astrocyte" units="1/min">0</fusion_rate>
                     </fusion_rates>
                 </cell_interactions>
                 <cell_transformations>
                     <transformation_rates>
-                        <transformation_rate name="malignant epithelial" units="1/min">0</transformation_rate>
-                        <transformation_rate name="default" units="1/min">0</transformation_rate>
+                        <transformation_rate name="NE" units="1/min">0</transformation_rate>
+                        <!-- the NE -> apical RG conversion is time-gated in cell_rules.csv -->
+                        <transformation_rate name="apical RG" units="1/min">0</transformation_rate>
+                        <transformation_rate name="oRG" units="1/min">0</transformation_rate>
+                        <transformation_rate name="IPC" units="1/min">0</transformation_rate>
+                        <transformation_rate name="deep neuron" units="1/min">0</transformation_rate>
+                        <transformation_rate name="upper neuron" units="1/min">0</transformation_rate>
+                        <transformation_rate name="astrocyte" units="1/min">0</transformation_rate>
+                    </transformation_rates>
+                </cell_transformations>
+                <cell_integrity>
+                    <damage_rate units="1/min">0.0</damage_rate>
+                    <damage_repair_rate units="1/min">0.0</damage_repair_rate>
+                </cell_integrity>
+            </phenotype>
+            <custom_data>
+                <divisions conserved="false" units="dimensionless" description="divisions this cell has completed since it last changed type">0.0</divisions>
+                <last_type conserved="false" units="dimensionless" description="cell type at the last custom-rule tick; a change resets the division counter">-1.0</last_type>
+            </custom_data>
+            <initial_parameter_distributions enabled="false" />
+        </cell_definition>
+
+        <cell_definition name="apical RG" ID="1" parent_type="NE">
+            <!-- PAX6+/SOX2+ ventricular radial glia: the workhorse progenitor.
+                 Divides symmetrically to expand, asymmetrically (rules-driven)
+                 to bud IPCs and, later, oRG. -->
+            <phenotype>
+                <cycle code="5" name="live">
+                    <phase_transition_rates units="1/min">
+                        <!-- ~30 h cycle -->
+                        <rate start_index="0" end_index="0" fixed_duration="false">0.00056</rate>
+                    </phase_transition_rates>
+                    <standard_asymmetric_division enabled="true">
+                        <!-- the IPC probability here is both the sparse early
+                             neurogenesis and the floor Notch suppression can
+                             reach; time raises it toward 0.65 in
+                             cell_rules.csv -->
+                        <asymmetric_division_probability name="NE" units="dimensionless">0.0</asymmetric_division_probability>
+                        <asymmetric_division_probability name="apical RG" units="dimensionless">0.0</asymmetric_division_probability>
+                        <asymmetric_division_probability name="oRG" units="dimensionless">0.0</asymmetric_division_probability>
+                        <asymmetric_division_probability name="IPC" units="dimensionless">0.08</asymmetric_division_probability>
+                        <asymmetric_division_probability name="deep neuron" units="dimensionless">0.0</asymmetric_division_probability>
+                        <asymmetric_division_probability name="upper neuron" units="dimensionless">0.0</asymmetric_division_probability>
+                        <asymmetric_division_probability name="astrocyte" units="dimensionless">0.0</asymmetric_division_probability>
+                    </standard_asymmetric_division>
+                </cycle>
+            </phenotype>
+        </cell_definition>
+
+        <cell_definition name="oRG" ID="2" parent_type="NE">
+            <!-- HOPX+ outer radial glia: the basal progenitor that makes human
+                 cortex big. Slower cycle; a fixed fraction of its divisions is
+                 neurogenic via IPC. -->
+            <phenotype>
+                <cycle code="5" name="live">
+                    <phase_transition_rates units="1/min">
+                        <!-- ~40 h cycle -->
+                        <rate start_index="0" end_index="0" fixed_duration="false">0.00042</rate>
+                    </phase_transition_rates>
+                    <standard_asymmetric_division enabled="true">
+                        <asymmetric_division_probability name="NE" units="dimensionless">0.0</asymmetric_division_probability>
+                        <asymmetric_division_probability name="apical RG" units="dimensionless">0.0</asymmetric_division_probability>
+                        <asymmetric_division_probability name="oRG" units="dimensionless">0.0</asymmetric_division_probability>
+                        <asymmetric_division_probability name="IPC" units="dimensionless">0.4</asymmetric_division_probability>
+                        <asymmetric_division_probability name="deep neuron" units="dimensionless">0.0</asymmetric_division_probability>
+                        <asymmetric_division_probability name="upper neuron" units="dimensionless">0.0</asymmetric_division_probability>
+                        <asymmetric_division_probability name="astrocyte" units="dimensionless">0.0</asymmetric_division_probability>
+                    </standard_asymmetric_division>
+                </cycle>
+                <volume>
+                    <total units="micron^3">1500</total>
+                    <nuclear units="micron^3">500</nuclear>
+                </volume>
+            </phenotype>
+        </cell_definition>
+
+        <cell_definition name="IPC" ID="3" parent_type="NE">
+            <!-- TBR2/EOMES+ intermediate progenitor: 1-2 amplifying divisions
+                 (ipc_division_limit), then a neuron. Expresses the Notch ligand
+                 that keeps its radial-glia neighbours proliferative. -->
+            <phenotype>
+                <cycle code="5" name="live">
+                    <phase_transition_rates units="1/min">
+                        <!-- ~24 h cycle -->
+                        <rate start_index="0" end_index="0" fixed_duration="false">0.0007</rate>
+                    </phase_transition_rates>
+                </cycle>
+                <volume>
+                    <total units="micron^3">1000</total>
+                    <nuclear units="micron^3">450</nuclear>
+                </volume>
+                <secretion>
+                    <substrate name="dll">
+                        <secretion_rate units="1/min">2</secretion_rate>
+                        <secretion_target units="substrate density">0.5</secretion_target>
+                    </substrate>
+                </secretion>
+                <cell_transformations>
+                    <transformation_rates>
+                        <!-- the early default; time trades this for the upper-layer
+                             branch in cell_rules.csv (inside-out neurogenesis) -->
+                        <transformation_rate name="deep neuron" units="1/min">0.0009</transformation_rate>
                     </transformation_rates>
                 </cell_transformations>
             </phenotype>
-            <custom_data>
-                <sample conserved="false" units="dimensionless" description="">1.0</sample>
-            </custom_data>
+        </cell_definition>
+
+        <cell_definition name="deep neuron" ID="4" parent_type="NE">
+            <!-- TBR1/CTIP2+ deep-layer excitatory neuron: post-mitotic, migrates
+                 outward, expresses DLL and the gliogenic cue CT-1 -->
+            <phenotype>
+                <cycle code="5" name="live">
+                    <phase_transition_rates units="1/min">
+                        <rate start_index="0" end_index="0" fixed_duration="false">0</rate>
+                    </phase_transition_rates>
+                </cycle>
+                <volume>
+                    <total units="micron^3">850</total>
+                    <nuclear units="micron^3">400</nuclear>
+                </volume>
+                <secretion>
+                    <substrate name="dll">
+                        <secretion_rate units="1/min">1</secretion_rate>
+                        <secretion_target units="substrate density">0.25</secretion_target>
+                    </substrate>
+                    <substrate name="ct1">
+                        <secretion_rate units="1/min">1</secretion_rate>
+                        <secretion_target units="substrate density">1</secretion_target>
+                    </substrate>
+                </secretion>
+            </phenotype>
+        </cell_definition>
+
+        <cell_definition name="upper neuron" ID="5" parent_type="NE">
+            <!-- SATB2+ upper-layer excitatory neuron: the late product of the
+                 same IPC route -->
+            <phenotype>
+                <cycle code="5" name="live">
+                    <phase_transition_rates units="1/min">
+                        <rate start_index="0" end_index="0" fixed_duration="false">0</rate>
+                    </phase_transition_rates>
+                </cycle>
+                <volume>
+                    <total units="micron^3">850</total>
+                    <nuclear units="micron^3">400</nuclear>
+                </volume>
+                <secretion>
+                    <substrate name="dll">
+                        <secretion_rate units="1/min">1</secretion_rate>
+                        <secretion_target units="substrate density">0.25</secretion_target>
+                    </substrate>
+                    <substrate name="ct1">
+                        <secretion_rate units="1/min">1</secretion_rate>
+                        <secretion_target units="substrate density">1</secretion_target>
+                    </substrate>
+                </secretion>
+            </phenotype>
+        </cell_definition>
+
+        <cell_definition name="astrocyte" ID="6" parent_type="NE">
+            <!-- GFAP/S100B+ astrocyte: the gliogenic-switch product, slow-cycling -->
+            <phenotype>
+                <cycle code="5" name="live">
+                    <phase_transition_rates units="1/min">
+                        <!-- ~1 week cycle -->
+                        <rate start_index="0" end_index="0" fixed_duration="false">0.0001</rate>
+                    </phase_transition_rates>
+                </cycle>
+                <volume>
+                    <total units="micron^3">1700</total>
+                    <nuclear units="micron^3">500</nuclear>
+                </volume>
+            </phenotype>
+        </cell_definition>
+
+        <cell_definition name="variant NE" ID="7" parent_type="NE">
+            <!-- founder cells of the mosaic clone: same phenotype as NE, but
+                 their identity is heritable and they convert to variant RG
+                 (see cell_rules.csv), keeping the clone on the variant track -->
+            <phenotype></phenotype>
+        </cell_definition>
+
+        <cell_definition name="variant RG" ID="8" parent_type="apical RG">
+            <!-- the skewed progenitor: identical to apical RG except its
+                 differentiative output is scaled by (1 - skew). sweep.py
+                 rewrites the VARIANT_BASE line and this type's rows in
+                 cell_rules.csv per run. -->
+            <phenotype>
+                <cycle code="5" name="live">
+                    <phase_transition_rates units="1/min">
+                        <rate start_index="0" end_index="0" fixed_duration="false">0.00056</rate>
+                    </phase_transition_rates>
+                    <standard_asymmetric_division enabled="true">
+                        <asymmetric_division_probability name="IPC" units="dimensionless">0.04</asymmetric_division_probability> <!-- VARIANT_BASE -->
+                    </standard_asymmetric_division>
+                </cycle>
+            </phenotype>
         </cell_definition>
     </cell_definitions>
 
     <initial_conditions>
-        <cell_positions type="csv" enabled="true">
+        <cell_positions type="csv" enabled="false">
             <folder>./config</folder>
             <filename>cells.csv</filename>
         </cell_positions>
@@ -257,15 +493,28 @@
         <rulesets>
             <ruleset protocol="CBHG" version="3.0" format="csv" enabled="true">
                 <folder>./config</folder>
-                <filename>cell_rules_v2.csv</filename>
+                <filename>cell_rules.csv</filename>
             </ruleset>
         </rulesets>
         <settings />
     </cell_rules>
 
-
     <user_parameters>
-        <random_seed type="int" units="dimensionless" description="">0</random_seed>
-        <number_of_cells type="int" units="none" description="initial number of cells (for each cell type)">0</number_of_cells>
+        <seed_cells type="int" units="dimensionless" description="neuroepithelial cells the organoid starts from">100</seed_cells>
+        <seed_radius type="double" units="micron" description="radius of the starting ball; 0 = derive it from the cell volume so the seed starts compact">0.0</seed_radius>
+        <variant_fraction type="double" units="dimensionless" description="fraction of founders seeded as the variant clone, spread evenly through the ball; their IDs are written to variant_founders.csv">0.10</variant_fraction>
+
+        <matrigel_packing type="double" units="dimensionless" description="packing fraction the confinement radius is computed for; 0.74 is close packing">0.68</matrigel_packing>
+        <confinement_stiffness type="double" units="1/min" description="how hard the Matrigel droplet pushes strays back onto the ball">0.5</confinement_stiffness>
+        <confinement_max_speed type="double" units="micron/min" description="cap on the confinement speed, for numerical stability">5.0</confinement_max_speed>
+
+        <neuron_migration_speed type="double" units="micron/min" description="outward radial migration of newborn neurons, glial-guided in vivo">0.25</neuron_migration_speed>
+        <neuron_migration_shell type="double" units="dimensionless" description="fraction of the organoid radius beyond which neurons stop migrating (the cortical plate)">0.85</neuron_migration_shell>
+
+        <ipc_division_limit type="int" units="dimensionless" description="amplifying divisions an IPC makes before it must become a neuron">2</ipc_division_limit>
+
+        <notch_inhibition type="double" units="dimensionless" description="DAPT-like Notch blockade, 0 = none, 1 = complete; expect premature neurogenesis and progenitor exhaustion">0.0</notch_inhibition>
+        <gliogenic_potency type="double" units="dimensionless" description="scales neuron-derived CT-1; CNTF/LIF-like push toward astrogenesis">1.0</gliogenic_potency>
     </user_parameters>
+
 </PhysiCell_settings>

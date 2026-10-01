@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PhysiCell 3D viewer</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='13' fill='%233987e5'/%3E%3Ccircle cx='11' cy='11' r='4' fill='%23cde2fb'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="./src/ui/style.css">
+<script type="importmap">
+{
+  "imports": {
+    "three": "./vendor/three/three.module.js",
+    "three/addons/": "./vendor/three/addons/"
+  }
+}
+</script>
+</head>
+<body>
+
+<div id="app">
+
+  <header class="topbar">
+    <div class="brand">
+      <span class="mark"></span>
+      <span>PhysiCell<span class="thin"> 3D viewer</span></span>
+    </div>
+    <div class="source-line">
+      <label class="file-button">
+        Open output folder
+        <input type="file" id="folderInput" webkitdirectory directory multiple hidden>
+      </label>
+      <div class="url-load">
+        <input type="text" id="urlInput" placeholder="../output/" value="../output/" spellcheck="false">
+        <button id="urlLoad" type="button">Load</button>
+      </div>
+      <span id="sourceLabel" class="muted">no dataset</span>
+    </div>
+    <div class="topbar-right">
+      <button id="screenshotBtn" type="button" title="Save a PNG of the current view">Screenshot</button>
+      <button id="svgBtn" type="button" title="Save the current view as a vector SVG — cells, parent links and domain box">SVG</button>
+      <button id="helpBtn" type="button" title="Keyboard shortcuts">?</button>
+    </div>
+  </header>
+
+  <aside class="sidebar" id="sidebar">
+
+    <section class="panel">
+      <h2>Colour</h2>
+      <label class="row">
+        <span>Encode</span>
+        <select id="colorMode">
+          <option disabled selected>no dataset loaded</option>
+        </select>
+      </label>
+      <label class="row" data-when="clone" hidden>
+        <span>Split at generation <output id="subcloneOut">0</output></span>
+        <input type="range" id="subcloneDepth" min="0" max="12" step="1" value="0">
+      </label>
+      <label class="row" data-when="sequential">
+        <span>Ramp</span>
+        <select id="ramp"></select>
+      </label>
+      <div class="row" data-when="sequential">
+        <span>Range</span>
+        <div class="range-inputs">
+          <input type="number" id="rangeMin" step="any" placeholder="min">
+          <input type="number" id="rangeMax" step="any" placeholder="max">
+        </div>
+      </div>
+      <div class="row inline" data-when="sequential">
+        <label class="check"><input type="checkbox" id="rangeLock"> Lock range</label>
+        <label class="check"><input type="checkbox" id="logScale"> Log</label>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2>Cells</h2>
+      <label class="row">
+        <span>Size <output id="cellScaleOut">1.00×</output></span>
+        <input type="range" id="cellScale" min="0.05" max="2" step="0.05" value="1">
+      </label>
+      <label class="check"><input type="checkbox" id="hideDead"> Hide dead cells</label>
+      <label class="check"><input type="checkbox" id="showBox" checked> Domain box</label>
+      <label class="check"><input type="checkbox" id="showGrid"> Floor grid</label>
+      <label class="row">
+        <span>Depth cueing <output id="fogOut">0.45</output></span>
+        <input type="range" id="fog" min="0" max="1" step="0.05" value="0.45">
+      </label>
+    </section>
+
+    <section class="panel">
+      <h2>Section plane</h2>
+      <label class="check"><input type="checkbox" id="clipOn"> Cut the population open</label>
+      <div class="sub" data-when="clip">
+        <label class="row">
+          <span>Axis</span>
+          <select id="clipAxis">
+            <option value="x">X</option>
+            <option value="y">Y</option>
+            <option value="z" selected>Z</option>
+            <option value="camera">Camera facing</option>
+          </select>
+        </label>
+        <label class="row">
+          <span>Position <output id="clipPosOut">0</output></span>
+          <input type="range" id="clipPos" min="-1" max="1" step="0.005" value="0">
+        </label>
+        <label class="check"><input type="checkbox" id="clipCap" checked> Show cut faces</label>
+        <label class="check"><input type="checkbox" id="clipFlip"> Flip side</label>
+      </div>
+    </section>
+
+    <section class="panel" id="substratePanel" hidden>
+      <h2>Substrate</h2>
+      <label class="check"><input type="checkbox" id="subOn"> Show slice</label>
+      <div class="sub" data-when="substrate">
+        <label class="row">
+          <span>Field</span>
+          <select id="subField"></select>
+        </label>
+        <label class="row">
+          <span>Axis</span>
+          <select id="subAxis">
+            <option value="x">X</option>
+            <option value="y">Y</option>
+            <option value="z" selected>Z</option>
+          </select>
+        </label>
+        <label class="row">
+          <span>Slice <output id="subPosOut">0</output></span>
+          <input type="range" id="subPos" min="0" max="1" step="1" value="0">
+        </label>
+        <label class="row">
+          <span>Ramp</span>
+          <select id="subRamp"></select>
+        </label>
+        <label class="row">
+          <span>Opacity <output id="subOpacityOut">0.90</output></span>
+          <input type="range" id="subOpacity" min="0" max="1" step="0.05" value="0.9">
+        </label>
+        <div class="readout" id="subRange"></div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2>Lineage</h2>
+      <label class="row">
+        <span>Highlight</span>
+        <select id="highlightMode">
+          <option value="none">Nothing</option>
+          <option value="clade" selected>Whole clade</option>
+          <option value="ancestors">Ancestors</option>
+          <option value="descendants">Descendants</option>
+          <option value="siblings">Siblings</option>
+        </select>
+      </label>
+      <label class="check"><input type="checkbox" id="isolate"> Hide everything else</label>
+      <label class="check"><input type="checkbox" id="treeClade"> Tree shows clade only</label>
+
+      <label class="check"><input type="checkbox" id="linksOn"> Draw lines to parents</label>
+      <div class="sub" data-when="links" hidden>
+        <label class="row">
+          <span>Show</span>
+          <select id="linkScope">
+            <option value="all" selected>Every cell</option>
+            <option value="clade">Selected clade only</option>
+          </select>
+        </label>
+        <label class="row">
+          <span>Opacity <output id="linkOpacityOut">0.55</output></span>
+          <input type="range" id="linkOpacity" min="0.05" max="1" step="0.05" value="0.55">
+        </label>
+        <label class="check"><input type="checkbox" id="linkOnTop" checked> Draw over the cells</label>
+        <label class="check"><input type="checkbox" id="linkDeparted"> Reach parents that have died</label>
+        <div class="readout" id="linkStats"></div>
+      </div>
+      <div class="readout" id="lineageStats">No lineage data loaded.</div>
+      <div class="selection" id="selection">
+        <div class="empty">Click a cell to inspect it.</div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2>View</h2>
+      <label class="check"><input type="checkbox" id="autoRotate"> Auto-rotate</label>
+      <label class="row">
+        <span>Speed <output id="rotateOut">0.35</output></span>
+        <input type="range" id="rotateSpeed" min="0.05" max="2" step="0.05" value="0.35">
+      </label>
+      <label class="check"><input type="checkbox" id="supersample"> Supersample (sharper, slower)</label>
+      <div class="button-row">
+        <button id="resetView" type="button">Reset camera</button>
+        <button id="fitView" type="button">Fit to cells</button>
+      </div>
+      <div class="readout" id="perf"></div>
+    </section>
+
+  </aside>
+
+  <main class="stage-wrap">
+    <div id="stage" class="stage"></div>
+
+    <div class="overlay legend" id="legend" hidden></div>
+    <div class="overlay hud" id="hud"></div>
+    <div class="tooltip" id="tooltip" hidden></div>
+
+    <div class="empty-state" id="emptyState">
+      <h1>Open a PhysiCell output folder</h1>
+      <p>
+        Point the viewer at a run's <code>output/</code> directory — the one holding
+        <code>output00000000.xml</code> and its <code>_cells.mat</code> companions.
+      </p>
+      <p class="muted">
+        Serve the repository and load <code>../output/</code>, or pick a folder from disk.
+        Nothing is uploaded; every file is read in the browser.
+      </p>
+      <div id="emptyError" class="error" hidden></div>
+    </div>
+
+    <div class="timeline" id="timeline">
+      <button id="firstBtn" type="button" title="First frame (Home)">⏮</button>
+      <button id="prevBtn" type="button" title="Previous frame (←)">◀</button>
+      <button id="playBtn" type="button" class="play" title="Play / pause (Space)">▶</button>
+      <button id="nextBtn" type="button" title="Next frame (→)">▶|</button>
+      <button id="lastBtn" type="button" title="Last frame (End)">⏭</button>
+      <input type="range" id="frameSlider" min="0" max="0" step="1" value="0">
+      <div class="time-readout" id="timeReadout">–</div>
+      <label class="check compact"><input type="checkbox" id="loopPlay" checked> Loop</label>
+      <label class="row compact">
+        <span>fps</span>
+        <input type="number" id="fps" min="1" max="60" step="1" value="10">
+      </label>
+    </div>
+  </main>
+
+  <section class="tree-panel" id="treePanel">
+    <div class="tree-resize" id="treeResize" title="Drag to resize"></div>
+    <div class="tree-head">
+      <h2>Lineage tree</h2>
+      <span class="muted" id="treeHint">drag to pan · wheel to zoom time · shift+wheel to zoom rows · double-click to fit</span>
+      <button id="treeFit" type="button">Fit</button>
+      <button id="treeToggle" type="button" title="Collapse (L)">▾</button>
+    </div>
+    <canvas id="treeCanvas"></canvas>
+  </section>
+
+</div>
+
+<dialog id="helpDialog">
+  <h2>Keyboard</h2>
+  <dl>
+    <dt>Space</dt><dd>play / pause</dd>
+    <dt>← →</dt><dd>step one frame</dd>
+    <dt>Home / End</dt><dd>first / last frame</dd>
+    <dt>F</dt><dd>fit the camera to the cells</dd>
+    <dt>R</dt><dd>reset the camera</dd>
+    <dt>C</dt><dd>toggle the section plane</dd>
+    <dt>L</dt><dd>toggle the lineage tree</dd>
+    <dt>Esc</dt><dd>clear the selection</dd>
+  </dl>
+  <h2>Mouse</h2>
+  <dl>
+    <dt>drag</dt><dd>rotate</dd>
+    <dt>right-drag / two-finger</dt><dd>pan</dd>
+    <dt>wheel</dt><dd>zoom</dd>
+    <dt>click a cell</dt><dd>select it and its lineage</dd>
+  </dl>
+  <form method="dialog"><button>Close</button></form>
+</dialog>
+
+<script type="module" src="./src/main.js"></script>
+</body>
+</html>
